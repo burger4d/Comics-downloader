@@ -1,14 +1,26 @@
 import requests
 import os
+#os.environ['KIVY_IMAGE'] = 'pil,sdl2'
 from fuzzywuzzy import process
-
 
 url="https://readcomicsonline.ru/comic-list"
 r=requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
 List = str(r.content)
 n=List.find(".jpg")-50
-print(List[n:n+54])
+#print(List[n:n+54])
 List=List[List.find('<a href="https://readcomicsonline.ru/comic-list/tag'):List.find('<div class="text-version-sidebar" style="display: none;">')]
+
+import kivy
+from kivy.app import App
+from kivy.uix.label import Label
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.widget import Widget
+from kivy.properties import ObjectProperty
+from kivy.uix.image import Image, AsyncImage
+from kivy.uix.slider import Slider
 
 comics = []
 urls = {}
@@ -28,12 +40,13 @@ def download_image(url, name):
     with open(name+".jpg", "wb") as file:
         file.write(r.content)
         file.close()
-    print("ok")
+    #print("ok")
 
 def search(name):
-    global urls, comics, results, List2
+    global urls, comics, results, List2, images
     url="https://readcomicsonline.ru/comic-list"
     results=[]
+    images = {}
     for result in process.extract(name, comics, limit=20):
         results.append(result[0])
     r=requests.get(urls[results[0]])
@@ -47,18 +60,31 @@ def search(name):
         urls[title]=url
         List2=List2[List2.find("https://readcomicsonline.ru/comic/"):]
         url=List2[:List2.find('">')]
+        begin="https://readcomicsonline.ru/uploads/manga/"
         if "https://readcomicsonline.ru/comic/" in url:
-            print(title)
+            #print(title)
+            title=title.replace(":","")
+            s="""0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&'()*+,-.;<=>?@[]^_`{|}~ """
+            #print(url)
+            for i in title:
+                if i not in s:
+                    title=title.replace(i, "")
             comics.append(title)
             urls[title]=url
+            url42 = url[::-1]
+            url42 = url42[url42.find("/"):]
+            url42 = url42[::-1]+"chapters/1/01.jpg"
+            url42 = url42.replace("comic/", "uploads/manga/")
+            #print(url42)
+            images[title] = url42
         else:
             break
-
+   # print(len(comics))
+    return comics
 
 def comicschoice(n):
-    global url2, title, minititle
+    global url2, title, minititle, issues
     title=comics[n]
-    title.replace(":","")
     print(title)
     os.makedirs(title, exist_ok=True)
     url=urls[title]
@@ -84,9 +110,156 @@ def chapterschoice(first, last):
             else:
                 break
 
-if __name__ == "__main__":
-    name = input("name:")
-    search(name)
-    n=int(input("which one?:"))
-    comicschoice(n)
-    chapterschoice(int(input("first:")), int(input("last:")))
+
+class MyApp(App):
+    def build(self):
+        self.comicnumber=0
+        self.layout = GridLayout(cols=1,
+                            row_force_default=True,
+                            row_default_height=40,
+                            spacing=50,
+                            padding=20)
+        #img = Image(source="image.jpg")
+        self.comics = TextInput(text="spiderverse")
+        self.Submit = Button(text="search",
+                        bold=True,
+                        background_color=(1, 0, 0, 1),
+                        pos_hint={"center_x":0.5, "center_y":0.5},
+                        color=(1, 1, 1, 1),
+                        on_press=self.submit)
+        self.layout.add_widget(self.comics)
+        self.layout.add_widget(self.Submit)
+        return self.layout
+    
+    def submit(self, obj):
+        global comics
+        self.lbl=Label(text="Loading...")
+        self.layout.add_widget(self.lbl)
+        #layout = obj.parent
+        #print(Window.size)
+        comic=self.comics.text
+        #self.layout.remove_widget(obj)
+        self.layout.remove_widget(self.comics)
+        self.layout.remove_widget(self.Submit)
+        self.layout.do_layout()
+        self.orientation="horizontal"
+        #X=Window.size[0]
+        #Y=Window.size[1]
+        self.layout.row_force_default=False
+        self.layout.col_force_default=False
+        #self.layout.row_default_height=350
+        #self.layout.col_default_width=250
+        self.layout.spacing=0
+        self.layout.padding=0
+        print(comic)
+        search(comic)
+        #print(comics)
+        #self.layout.cols=len(comics)
+        #l=[]
+        os.makedirs("covers", exist_ok=True)
+        for com in comics:
+            link=images[com]
+            download_image(link, "covers/"+com)
+            if os.path.getsize("covers/"+com+".jpg")<200:
+                os.remove("covers/"+com+".jpg")
+                comics.remove(com)
+        self.layout.remove_widget(self.lbl)
+        self.selectedcomic = comics[0]
+        self.btn = Button(
+                     size_hint_y=350,
+                     background_normal="covers/"+comics[0]+".jpg",
+                     pos_hint={"center_x":0.5, "center_y":0.5},
+                     on_press=self.select_comic)
+        self.lbl = Label(text = comics[0])
+        self.btn2 = Button(text=">>>>",
+                     bold=True,
+                     color=(0, 1, 0, 1),
+                     pos_hint={"center_x":0.5, "center_y":0.9},
+                     on_press=self.next_comic)
+        self.layout.add_widget(self.btn)
+        self.layout.add_widget(self.lbl)
+        self.layout.add_widget(self.btn2)
+        
+    def next_comic(self, obj):
+        self.comicnumber+=1
+        if self.comicnumber == len(comics):
+            self.comicnumber = 0
+        self.selectedcomic = comics[self.comicnumber]
+        self.layout.remove_widget(self.btn)
+        self.layout.remove_widget(self.lbl)
+        self.layout.remove_widget(self.btn2)
+        self.btn = Button(
+                     size_hint_y=350,
+                     background_normal="covers/"+comics[self.comicnumber]+".jpg",
+                     pos_hint={"center_x":0.5, "center_y":0.5},
+                     on_press=self.select_comic)
+        btn2 = Button(text=">>>>",
+                     bold=True,
+                     color=(0, 1, 0, 1),
+                     pos_hint={"center_x":0.5, "center_y":0.9},
+                     on_press=self.next_comic)
+        self.lbl = Label(text = comics[self.comicnumber])
+        self.layout.add_widget(self.btn)
+        self.layout.add_widget(self.lbl)
+        self.layout.add_widget(self.btn2)
+        
+    def select_comic(self, obj):
+        self.layout.remove_widget(self.btn)
+        self.layout.remove_widget(self.btn2)
+        self.img = Image(source="covers/"+self.selectedcomic+".jpg")
+        comicschoice(self.comicnumber)
+        self.first_issue = 1
+        self.last_issue = issues
+        self.lbl2 = Label(text="Last released issue: "+str(issues)+"\n(But it is possible that there are less issues)\nselect the wanted issues")
+        self.btn = Button(text="Next step",
+                          background_color=(1, 0, 0, 1),
+                          color = (0, 1, 0, 1),
+                          on_press = self.lastissue)
+        
+        self.slider = Slider(min=1, max=issues, value=1)
+        self.slider.bind(value=self.slider_change)
+        self.lblslide = Label(text="First issue: "+str(self.slider.value))
+
+        
+        self.layout.add_widget(self.img)
+        self.layout.add_widget(self.lbl2)
+        self.layout.add_widget(self.slider)
+        self.layout.add_widget(self.lblslide)
+        self.layout.add_widget(self.btn)
+        print(self.selectedcomic)
+        print(issues)
+
+    def slider_change(self, obj, value):
+        self.lblslide.text = "First issue: "+str(int(value))
+        self.first_issue = int(value)
+
+    def slider_change2(self, obj, value):
+        self.lblslide.text = "Last issue: "+str(int(value))+"(first issue: "+str(self.first_issue)+")"
+        self.last_issue = int(value)
+
+    def lastissue(self, obj):
+        self.layout.remove_widget(self.btn)
+        self.layout.remove_widget(self.slider)
+        self.layout.remove_widget(self.lblslide)
+        self.slider = Slider(min=self.first_issue, max=issues, value=issues)
+        self.slider.bind(value=self.slider_change2)
+        self.lblslide = Label(text="Last issue: "+str(self.slider.value)+"(first issue: "+str(self.first_issue)+")")
+        self.layout.add_widget(self.slider)
+        self.layout.add_widget(self.lblslide)
+        self.btn = Button(text="Download",
+                          background_color=(0, 0, 1, 1),
+                          color = (0, 1, 0, 1),
+                          on_press = self.download)
+        self.layout.add_widget(self.btn)
+    def download(self, obj):
+        self.layout.remove_widget(self.btn)
+        self.layout.remove_widget(self.lbl)
+        self.layout.remove_widget(self.slider)
+        self.layout.remove_widget(self.lblslide)
+        self.layout.remove_widget(self.img)
+        self.layout.remove_widget(self.lbl2)
+        self.lbl = Label(text="Task finished")
+        self.layout.add_widget(self.lbl)
+        chapterschoice(self.first_issue, self.last_issue)
+
+MyApp().run()
