@@ -1,13 +1,13 @@
 import requests
 import os
-#os.environ['KIVY_IMAGE'] = 'pil,sdl2'
 from fuzzywuzzy import process
+from PIL import Image as IMAGE
+#os.environ['KIVY_IMAGE'] = 'pil,sdl2'
 
 url="https://readcomicsonline.ru/comic-list"
 r=requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
 List = str(r.content)
 n=List.find(".jpg")-50
-#print(List[n:n+54])
 List=List[List.find('<a href="https://readcomicsonline.ru/comic-list/tag'):List.find('<div class="text-version-sidebar" style="display: none;">')]
 
 import kivy
@@ -62,10 +62,8 @@ def search(name):
         url=List2[:List2.find('">')]
         begin="https://readcomicsonline.ru/uploads/manga/"
         if "https://readcomicsonline.ru/comic/" in url:
-            #print(title)
             title=title.replace(":","")
             s="""0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&'()*+,-.;<=>?@[]^_`{|}~ """
-            #print(url)
             for i in title:
                 if i not in s:
                     title=title.replace(i, "")
@@ -75,11 +73,9 @@ def search(name):
             url42 = url42[url42.find("/"):]
             url42 = url42[::-1]+"chapters/1/01.jpg"
             url42 = url42.replace("comic/", "uploads/manga/")
-            #print(url42)
             images[title] = url42
         else:
             break
-   # print(len(comics))
     return comics
 
 def comicschoice(n):
@@ -116,10 +112,9 @@ class MyApp(App):
         self.comicnumber=0
         self.layout = GridLayout(cols=1,
                             row_force_default=True,
-                            row_default_height=40,
+                            row_default_height=80,
                             spacing=50,
                             padding=20)
-        #img = Image(source="image.jpg")
         self.comics = TextInput(text="spiderverse")
         self.Submit = Button(text="search",
                         bold=True,
@@ -135,16 +130,12 @@ class MyApp(App):
         global comics
         self.lbl=Label(text="Loading...")
         self.layout.add_widget(self.lbl)
-        #layout = obj.parent
-        #print(Window.size)
         comic=self.comics.text
         #self.layout.remove_widget(obj)
         self.layout.remove_widget(self.comics)
         self.layout.remove_widget(self.Submit)
         self.layout.do_layout()
         self.orientation="horizontal"
-        #X=Window.size[0]
-        #Y=Window.size[1]
         self.layout.row_force_default=False
         self.layout.col_force_default=False
         #self.layout.row_default_height=350
@@ -163,6 +154,9 @@ class MyApp(App):
             if os.path.getsize("covers/"+com+".jpg")<200:
                 os.remove("covers/"+com+".jpg")
                 comics.remove(com)
+            else:
+                image = IMAGE.open("covers/"+com+".jpg")
+                image.save("covers/"+com+".jpg", optimize=True, quality=50)
         self.layout.remove_widget(self.lbl)
         self.selectedcomic = comics[0]
         self.btn = Button(
