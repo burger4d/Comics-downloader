@@ -53,6 +53,7 @@ def search(name):
     for result in process.extract(name, comics, limit=20):
         results.append(result[0])
     r=requests.get(urls[results[0]])
+    print("get")
     List2=str(r.content)
     List2=List2[List2.find("/comic/")+10:]
     comics=[]
@@ -112,13 +113,14 @@ def chapterschoice(first, last):
 
 class MyApp(App):
     def build(self):
-        #self.image=Image(source="loading.gif",anim_delay=-1,anim_loop=1)
         self.comicnumber=0
         self.layout = GridLayout(cols=1,
                             row_force_default=True,
                             row_default_height=80,
                             spacing=50,
                             padding=20)
+        self.lbl=Label(text="Download comics from the website readcomicsonline.ru")
+        #self.image=Image(source="Cover.jpg", size_hint_y=350)
         self.comics = TextInput(text="spiderverse")
         self.Submit = Button(text="search",
                         bold=True,
@@ -126,12 +128,15 @@ class MyApp(App):
                         pos_hint={"center_x":0.5, "center_y":0.5},
                         color=(1, 1, 1, 1),
                         on_press=self.submit)
+        #self.layout.add_widget(self.image)
+        self.layout.add_widget(self.lbl)
         self.layout.add_widget(self.comics)
         self.layout.add_widget(self.Submit)
         return self.layout
     
     def submit(self, obj):
         global comics
+        self.layout.remove_widget(self.lbl)
         self.lbl=Label(text="Loading...")
         self.layout.add_widget(self.lbl)
         #self.layout.add_widget(self.image)
