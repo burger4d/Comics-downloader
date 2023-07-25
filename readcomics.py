@@ -3,14 +3,6 @@ import os
 from fuzzywuzzy import process
 from PIL import Image as IMAGE
 import threading
-#os.environ['KIVY_IMAGE'] = 'pil,sdl2'
-
-url="https://readcomicsonline.ru/comic-list"
-r=requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
-List = str(r.content)
-n=List.find(".jpg")-50
-List=List[List.find('<a href="https://readcomicsonline.ru/comic-list/tag'):List.find('<div class="text-version-sidebar" style="display: none;">')]
-
 import kivy
 from kivy.app import App
 from kivy.uix.label import Label
@@ -24,19 +16,25 @@ from kivy.uix.image import Image, AsyncImage
 from kivy.uix.slider import Slider
 from kivy.clock import Clock
 
-
-comics = []
-urls = {}
-
-while 1:
-    url=List[List.find("https"):List.find('">')]
-    if not "https" in url:
-        break
-    else:
-        List=List[List.find('">')+2:]
-        title=List[:List.find("<")]
-        comics.append(title)
-        urls[title]=url
+def init():
+    global url, r, List, n, comics, urls, title
+    url="https://readcomicsonline.ru/comic-list"
+    r=requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
+    List = str(r.content)
+    n=List.find(".jpg")-50
+    List=List[List.find('<a href="https://readcomicsonline.ru/comic-list/tag'):List.find('<div class="text-version-sidebar" style="display: none;">')]
+    comics = []
+    urls = {}
+    
+    while 1:
+        url=List[List.find("https"):List.find('">')]
+        if not "https" in url:
+            break
+        else:
+            List=List[List.find('">')+2:]
+            title=List[:List.find("<")]
+            comics.append(title)
+            urls[title]=url
 
 def download_image(url, name):
     r=requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
@@ -120,18 +118,24 @@ class MyApp(App):
                             spacing=50,
                             padding=20)
         self.lbl=Label(text="Download comics from the website readcomicsonline.ru")
-        #self.image=Image(source="Cover.jpg", size_hint_y=350)
-        self.comics = TextInput(text="spiderverse")
-        self.Submit = Button(text="search",
-                        bold=True,
-                        background_color=(1, 0, 0, 1),
-                        pos_hint={"center_x":0.5, "center_y":0.5},
-                        color=(1, 1, 1, 1),
-                        on_press=self.submit)
-        #self.layout.add_widget(self.image)
         self.layout.add_widget(self.lbl)
-        self.layout.add_widget(self.comics)
-        self.layout.add_widget(self.Submit)
+        #self.image=Image(source="Cover.jpg", size_hint_y=350)
+        try:
+            init()
+        except Exception as err:
+            self.lbl2=Label(text=str(err), color=(1, 0, 0, 1))
+            self.layout.add_widget(self.lbl2)
+        else:
+            self.comics = TextInput(text="spiderverse")
+            self.Submit = Button(text="search",
+                            bold=True,
+                            background_color=(1, 0, 0, 1),
+                            pos_hint={"center_x":0.5, "center_y":0.5},
+                            color=(1, 1, 1, 1),
+                            on_press=self.submit)
+            #self.layout.add_widget(self.image)
+            self.layout.add_widget(self.comics)
+            self.layout.add_widget(self.Submit)
         return self.layout
     
     def submit(self, obj):
