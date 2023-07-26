@@ -2,6 +2,7 @@ import requests
 import os
 from fuzzywuzzy import process
 from PIL import Image as IMAGE
+import pathlib
 import threading
 import kivy
 from kivy.app import App
@@ -11,6 +12,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.widget import Widget
+from kivy.uix.checkbox import CheckBox
 from kivy.properties import ObjectProperty
 from kivy.uix.image import Image, AsyncImage
 from kivy.uix.slider import Slider
@@ -114,20 +116,30 @@ def comicschoice(n):
     print(minititle)
     print(url2)
 
-def chapterschoice(first, last):
+def images2pdf(comic_title, listdir, n):
+    im=[]
+    for file in listdir:
+        im.append(IMAGE.open(str(pathlib.Path().resolve())+"/"+comic_title+"/"+file))
+    im[0].save(str(pathlib.Path().resolve())+"/"+comic_title+"_pdf/"+comic_title+"#"+str(n)+".pdf", "PDF", resolution=100.0, save_all=True, append_images=im[1:])
+    
+def chapterschoice(first, last, pdfoption):
     for issue in range(first, last+1):
         url3=url2+"/"+str(issue)
         r=requests.get(url3)
         content=str(r.content)
-        for i in range(1, 100):
+        listdir=[]
+        for i in range(1, 300):
             integer=str(i)
             if len(integer)==1:
                 integer="0"+integer
             url4="https://readcomicsonline.ru/uploads/manga/"+minititle+"/chapters/"+str(issue)+"/"+integer+".jpg"
             if url4 in content:
                 download_image(url4, title+"/"+title+"_"+str(issue)+"_"+str(i))
+                listdir.append(title+"_"+str(issue)+"_"+str(i)+".jpg")
             else:
                 break
+        if pdfoption:
+            images2pdf(title, listdir, issue)
 
 
 class MyApp(App):
@@ -286,12 +298,19 @@ class MyApp(App):
         self.lblslide = Label(text="Last issue: "+str(self.slider.value)+"(first issue: "+str(self.first_issue)+")")
         self.layout.add_widget(self.slider)
         self.layout.add_widget(self.lblslide)
+        self.lbl3=Label(text ='option: convert images to pdf')
+        self.active = CheckBox(active = True)
+        self.layout.add_widget(self.lbl3)
+        self.layout.add_widget(self.active)
         self.btn = Button(text="Download",
                           background_color=(0, 0, 1, 1),
                           color = (0, 1, 0, 1),
                           on_press = self.download)
         self.layout.add_widget(self.btn)
     def download(self, obj):
+        self.layout.remove_widget(self.lbl3)
+        self.pdfoption=self.active.active
+        self.layout.remove_widget(self.active)
         self.layout.remove_widget(self.btn)
         self.layout.remove_widget(self.lbl)
         self.layout.remove_widget(self.slider)
@@ -300,10 +319,12 @@ class MyApp(App):
         self.layout.remove_widget(self.lbl2)
         self.lbl = Label(text="Downloading...")
         self.layout.add_widget(self.lbl)
+        if self.pdfoption:
+            os.makedirs(title+"_pdf", exist_ok=True)
         threading.Thread(target=self.execute_chapterschoice).start()
         #chapterschoice(self.first_issue, self.last_issue)
     def execute_chapterschoice(self):
-        chapterschoice(self.first_issue, self.last_issue)
+        chapterschoice(self.first_issue, self.last_issue, self.pdfoption)
         Clock.schedule_once(self.task_finished)
     def task_finished(self, obj):
         self.layout.remove_widget(self.btn)
@@ -311,4 +332,3 @@ class MyApp(App):
         self.lbl = Label(text="Task finished")
         self.layout.add_widget(self.lbl)
 MyApp().run()
-
