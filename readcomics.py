@@ -43,18 +43,14 @@ def download_image(url, name):
         file.close()
     #print("ok")
 
-def search(name):
-    global urls, comics, results, List2, images
+def search_thread(N):
+    global urls, comics
     url="https://readcomicsonline.ru/comic-list"
-    results=[]
-    images = {}
-    for result in process.extract(name, comics, limit=20):
-        results.append(result[0])
-    r=requests.get(urls[results[0]])
-    print("get")
+    r=requests.get(urls[results[N]])
+    print("get", urls[results[N]])
     List2=str(r.content)
     List2=List2[List2.find("/comic/")+10:]
-    comics=[]
+    #comics=[]
     while 1:
         List2=List2[List2.find('"chart-title"><strong>')+22:]
         title=List2[:List2.find("</strong>")]
@@ -65,11 +61,15 @@ def search(name):
         begin="https://readcomicsonline.ru/uploads/manga/"
         if "https://readcomicsonline.ru/comic/" in url:
             title=title.replace(":","")
-            s="""0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&'()*+,-.;<=>?@[]^_`{|}~ """
+            s=""":*"\/?<>"""
+            #print(title)
             for i in title:
-                if i not in s:
+                if i in s:
+                    #print(i)
                     title=title.replace(i, "")
-            comics.append(title)
+                #print(title)
+            if title not in comics:
+                comics.append(title)
             urls[title]=url
             url42 = url[::-1]
             url42 = url42[url42.find("/"):]
@@ -78,6 +78,27 @@ def search(name):
             images[title] = url42
         else:
             break
+
+def search(name):
+    global urls, comics, results, List2, images
+    url="https://readcomicsonline.ru/comic-list"
+    results=[]
+    images = {}
+    for result in process.extract(name, comics, limit=20):
+        if result[1]>89:
+            results.append(result[0])
+            #print(result)
+    #print(results)
+    comics=[]
+    threads=[]
+    for N in range(len(results)):
+        t=threading.Thread(target=search_thread, args=(N,))
+        threads.append(t)
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    print(comics)
     return comics
 
 def comicschoice(n):
@@ -123,10 +144,18 @@ class MyApp(App):
         try:
             init()
         except Exception as err:
-            self.lbl2=Label(text=str(err), color=(1, 0, 0, 1))
+            error=""
+            err2=""
+            for c in str(err):
+                if c==" " and len(err2)>30:
+                    error+=err2+"\n"
+                    err2=""
+                else:
+                    err2+=c
+            self.lbl2=Label(text=error, color=(1, 0, 0, 1), font_size=13)
             self.layout.add_widget(self.lbl2)
         else:
-            self.comics = TextInput(text="spiderverse")
+            self.comics = TextInput(text="deadpool", multiline=False)
             self.Submit = Button(text="search",
                             bold=True,
                             background_color=(1, 0, 0, 1),
@@ -282,3 +311,4 @@ class MyApp(App):
         self.lbl = Label(text="Task finished")
         self.layout.add_widget(self.lbl)
 MyApp().run()
+
