@@ -1,11 +1,13 @@
 import requests
 import os
+import time
 from fuzzywuzzy import process
 from PIL import Image as IMAGE
 import pathlib
 import threading
 import kivy
 from kivy.app import App
+from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
@@ -128,16 +130,21 @@ def chapterschoice(first, last, pdfoption):
         r=requests.get(url3)
         content=str(r.content)
         listdir=[]
+        l=[]
         for i in range(1, 300):
             integer=str(i)
             if len(integer)==1:
                 integer="0"+integer
             url4="https://readcomicsonline.ru/uploads/manga/"+minititle+"/chapters/"+str(issue)+"/"+integer+".jpg"
             if url4 in content:
-                download_image(url4, title+"/"+title+"_"+str(issue)+"_"+str(i))
+                t=threading.Thread(target=download_image, args=(url4, title+"/"+title+"_"+str(issue)+"_"+str(i)))
+                t.start()
+                l.append(t)
                 listdir.append(title+"_"+str(issue)+"_"+str(i)+".jpg")
             else:
                 break
+        for t in l:
+            t.join()
         if pdfoption:
             images2pdf(title, listdir, issue)
 
@@ -164,8 +171,9 @@ class MyApp(App):
                     err2=""
                 else:
                     err2+=c
-            self.lbl2=Label(text=error, color=(1, 0, 0, 1), font_size=13)
-            self.layout.add_widget(self.lbl2)
+            self.say_error(error)
+            #self.lbl2=Label(text=error, color=(1, 0, 0, 1), font_size=13)
+            #self.layout.add_widget(self.lbl2)
         else:
             self.comics = TextInput(text="deadpool", multiline=False)
             self.Submit = Button(text="search",
@@ -179,6 +187,18 @@ class MyApp(App):
             self.layout.add_widget(self.Submit)
         return self.layout
     
+    def say_error(self, error):
+        '''
+        self.lbl2=Label(text=error, color=(1, 0, 0, 1), font_size=13)
+        self.layout.add_widget(self.lbl2)
+        '''
+        content=Button(text=error,
+                       color=(1, 0, 0, 1),
+                       size_hint=(None, None),
+                       size=(500, 400))
+        popup=Popup(title="Error", content=content, auto_dismiss=False)
+        content.bind(on_press=quit)
+        popup.open()
     def submit(self, obj):
         global comics
         self.layout.remove_widget(self.lbl)
@@ -199,21 +219,41 @@ class MyApp(App):
         print(comic)
         search(comic)
         threading.Thread(target=self.search_covers).start()
+        
     def search_covers(self):
-        global comics
+        global comics, s
         os.makedirs("covers", exist_ok=True)
+        l=[]
+        #b=[]
+        #s={}
+        comics2=[]
+        print(len(comics))
         for com in comics:
             link=images[com]
-            download_image(link, "covers/"+com)
+            t=threading.Thread(target=download_image,args=(link, "covers/"+com))
+            t.start()
+            l.append(t)
+        for t in l:
+            t.join()
+        for com in comics:
             if os.path.getsize("covers/"+com+".jpg")<200:
+                #print("remove", com)
                 os.remove("covers/"+com+".jpg")
-                comics.remove(com)
+                #comics.remove(com)
+                #b.append(com)
             else:
+                comics2.append(com)
+                #s[com]=os.path.getsize("covers/"+com+".jpg")
                 image = IMAGE.open("covers/"+com+".jpg")
                 image.save("covers/"+com+".jpg", optimize=True, quality=50)
+        comics=comics2
+        print(len(comics))
+        print(comics)
+        #print(b)
         #self.layout.remove_widget(self.lbl)
         self.selectedcomic = comics[0]
         Clock.schedule_once(self.submit2)
+        
     def submit2(self, obj):
         global comics
         self.layout.remove_widget(self.lbl)
@@ -237,6 +277,7 @@ class MyApp(App):
         if self.comicnumber == len(comics):
             self.comicnumber = 0
         self.selectedcomic = comics[self.comicnumber]
+        print(self.selectedcomic)
         self.layout.remove_widget(self.btn)
         self.layout.remove_widget(self.lbl)
         self.layout.remove_widget(self.btn2)
@@ -307,7 +348,11 @@ class MyApp(App):
                           color = (0, 1, 0, 1),
                           on_press = self.download)
         self.layout.add_widget(self.btn)
+
+    
     def download(self, obj):
+        global ERROR
+        ERROR=""
         self.layout.remove_widget(self.lbl3)
         self.pdfoption=self.active.active
         self.layout.remove_widget(self.active)
@@ -323,12 +368,22 @@ class MyApp(App):
             os.makedirs(title+"_pdf", exist_ok=True)
         threading.Thread(target=self.execute_chapterschoice).start()
         #chapterschoice(self.first_issue, self.last_issue)
+        
     def execute_chapterschoice(self):
-        chapterschoice(self.first_issue, self.last_issue, self.pdfoption)
+        global ERROR
+        try:
+            chapterschoice(self.first_issue, self.last_issue, self.pdfoption)
+        except Exception as err:
+
+            ERROR=str(type(err))+str(err.args)
         Clock.schedule_once(self.task_finished)
+        
     def task_finished(self, obj):
-        self.layout.remove_widget(self.btn)
-        self.layout.remove_widget(self.lbl)
-        self.lbl = Label(text="Task finished")
-        self.layout.add_widget(self.lbl)
+        if ERROR != "":
+            self.say_error(ERROR)
+        else:
+            self.layout.remove_widget(self.btn)
+            self.layout.remove_widget(self.lbl)
+            self.lbl = Label(text="Task finished")
+            self.layout.add_widget(self.lbl)
 MyApp().run()
